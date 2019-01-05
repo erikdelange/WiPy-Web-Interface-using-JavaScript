@@ -90,7 +90,7 @@ while True:
                 conn.write(json.dumps({"LED": query["LED"]}))
 
         if path == "/api/toggle":
-            led.toggle()
+            led.toggle()  # no data sent back to the server here
 
         if path == "/api/init":
             pin_status = dict()

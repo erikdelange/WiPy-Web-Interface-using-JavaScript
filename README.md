@@ -27,9 +27,9 @@ If the server also returns data in its reply function then function *onClickEven
 Instead of the client polling for changes in the button status, I'm using Server Sent Events. This creates a connection from the server to the client which stays open. The server can then publish updates via this connection. An event listener on the client only catches a specific event (here: pin_change).
 
 ### Python Code
-The server waits for a new HTML request. The first line contains the path and optionally the query parameters. Subsequent lines contain the header fields and are recorded in dictionary *header*. A request for path "/api/pin" keeps the connection to the client open for server sent events. Notice the different response headers here.
+The server waits for a new HTML request. The first line contains the path and optionally the query parameters. Subsequent lines contain the header fields and are recorded in dictionary *header*. A request for path "/api/pin" keeps the connection to the client open for server sent events. Notice the different response headers here compared to other request paths.
 
-An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and transmits the new button status to the client (of course only if the client has expressed its interest in this event previously).
+An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and transmits the new button status to the client (of course only if the client has expressed its interest in this event previously). To see this in action keep the button on you Expansion Board pressed for a few seconds and watch the UI.
 
 The webpage in index.html is - at least for the WiPy 2's memory - quite large (4K). To save memory it is sent to the client in chuncks of 512 bytes. In this way only the space for a 512 byte buffer needs to be allocated which reduces the chance for out of memory exceptions. See function sendfile in http.py.
 ``` python
@@ -60,3 +60,5 @@ The resulting web page looks like this.
 * Chrome Version 71.0.3578.98 (64-bits)
 
 Unfortunately Server Sent Events do not (yet) work in Internet Explorer and Edge.
+
+Use F12 on Chrome and have a look the messages printed in the console.
