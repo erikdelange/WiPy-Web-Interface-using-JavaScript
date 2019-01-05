@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <link rel="icon" href="data:;base64,=">
+    <title> WiPy 2.0 </title>
+  </head>
+  <body>
+    <div style="min-width:400px">
+      <div class="w3-container w3-display-topmiddle">
+        <div class="w3-panel w3-light-gray">
+          <h1> Expansion Board </h1>
+        </div>
+        <h2> Button Status </h2>
+        <table class="w3-table-all">
+          <thead>
+      	    <tr class="w3-light-grey">
+              <th> Pin </th> <th> Value </th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <!-- use Javascript to fill this space with the table content -->
+          </tbody>
+        </table>
+        <h2> LED </h2>
+        <button name="LED" value="On" onclick="onClickEvent(event)" class="w3-btn w3-border w3-light-gray" style="width:100px"> ON </button>
+        <button name="LED" value="Off" onclick="onClickEvent(event)" class="w3-btn w3-border w3-light-gray" style="width:100px"> OFF </button>
+        <button name="LED" value="On" onclick="onToggleEvent(event)" class="w3-btn w3-border w3-light-gray" style="width:100px"> TOGGLE </button>
+      </div>
+    </div>
+    <script>
+      "use strict";
+
+      // Helper functions for fetch()
+      function validateResponse(response) {
+        if (!response.ok) {
+          return Promise.reject({
+                  status: response.status,
+                  statusText: response.statusText
+                });
+        }
+        return response;
+      }
+
+      function readResponseAsJSON(response) {
+        return response.json();
+      }
+
+      function readResponseAsBlob(response) {
+        return response.blob();
+      }
+
+      function readResponseAsText(response) {
+        return response.text();
+      }
+
+      function logError(error) {
+        console.log("fetch error:", error);
+      }
+
+      // Click on the ON or OFF button
+      function onClickEvent(event) {
+        var element = event.target;
+        fetch("/api/button?".concat(element.name, "=", element.value))
+          .then(validateResponse)
+          .then(readResponseAsJSON)
+          .then(data => {
+            console.log("onClickEvent response data:", data);
+           })
+          .catch(logError);
+      }
+
+      // Click on the TOGGLE button
+      function onToggleEvent(event) {
+        fetch("/api/toggle")
+        .then(validateResponse)
+        .catch (logError);
+      }
+
+      function onLoadEvent() {
+        // Load initial data
+        fetch("/api/init")
+          .then(validateResponse)
+          .then(readResponseAsJSON)
+          .then(data => {
+            console.log("/api/init data:", data);
+            var table = "";
+            for (var key in data) {
+              table += "<tr><td>" + key + "</td><td id='" + key + "'>" + data[key] + "</td></tr>\n";
+            }
+            document.getElementById("rows").innerHTML = table;
+           })
+          .catch(logError);
+
+          // Setup server side event listener
+          const eventSource = new EventSource("/api/pin");
+
+          eventSource.addEventListener("pin_change", (event) => {
+            var data = JSON.parse(event.data);
+            console.log("pin_change event:", event, "data:", data);
+            for (var key in data) {
+              document.getElementById(key).innerHTML = data[key];
+            }
+          });
+
+          eventSource.onopen = function () {
+            console.log("pin_change open");
+          };
+
+          eventSource.onerror = function () {
+            console.log("pin_change error");
+            eventSource.close();  // release resources
+          };
+      }
+
+      window.onload = onLoadEvent();
+    </script>
+  </body>
+</html>
