@@ -105,13 +105,13 @@
             }
           });
 
-          eventSource.onopen = function () {
+          eventSource.onopen = function() {
             console.log("pin_change open");
           };
 
-          eventSource.onerror = function () {
+          eventSource.onerror = function() {
             console.log("pin_change error");
-            eventSource.close();  // release resources
+            // eventSource.close();  // release resources; only do this if you do not want auto reconnect
           };
       }
 

@@ -70,9 +70,9 @@ while True:
         conn.write("HTTP/1.1 200 OK\nServer: WiPy\nCache-Control: no-cache\n")
         conn.write("Connection: keep-alive\nContent-Type: text/event-stream\n\n")
 
-        if client is None:
-            # conn.write("retry: 15000\nevent: pin_change\n\n")
-            client = conn
+        if client is None:  # first time connect
+            conn.write("retry: 60000\n\n")  # reconnect timeout of 60 seconds
+        client = conn
     else:
         conn.write("HTTP/1.1 200 OK\nServer: WiPy\n")
         conn.write("Connection: close\nContent-Type: text/html\n\n")
