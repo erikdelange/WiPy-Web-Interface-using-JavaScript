@@ -12,6 +12,8 @@
 #   HTTP-version = HTTP/1.1
 #   Path = /page
 #   Query = name1=0.07&name2=0.03&name3=0.13
+#
+# See also: https://www.tutorialspoint.com/http/http_requests.htm
 
 
 def query(request):
@@ -26,11 +28,11 @@ def query(request):
     d = dict()
     p = request.find(b"?")  # only look in the query part of a request-URI
     if p != -1:
+        p_space = request.find(b" ", p)
         while True:
             n_start = p + 1
             n_end = request.find(b"=", n_start)
             v_start = n_end + 1
-            p_space = request.find(b" ", v_start)
             p_and = request.find(b"&", v_start)
             v_end = p_space if p_and == -1 else min(p_space, p_and)
             d[request[n_start:n_end].decode("utf-8")] = request[v_start:v_end].decode("utf-8")
@@ -42,7 +44,7 @@ def query(request):
 
 
 def value(request, name):
-    """ Extract the value for a name=value pair from a request-URI's query.
+    """ Extract the value for a single name=value pair from a request-URI's query.
 
     The query string may contain multiple name-value pairs. If name occurs
     multiple times in the query string the first value is extracted.
@@ -67,14 +69,37 @@ def value(request, name):
 def path(request):
     """ Extract the URI path from a HTTP request.
 
-    Assumption: the URI for an absolute path is never empty, at least a
+    Convention: the URI for an absolute path is never empty, at least a
     forward slash is present.
 
     :param str request: the complete HTTP request-line.
-    :return str path:
+    :return str path: path, not including the query string
     """
     u_start = request.find(b"/")
     p_space = request.find(b" ", u_start)
     p_query = request.find(b"?", u_start)
     u_end = p_space if p_query == -1 else min(p_space, p_query)
     return request[u_start:u_end].decode("utf-8")
+
+
+def request(line):
+    """ Separate an HTTP request line in its elements and put them into a dict.
+
+    :param str line: the complete HTTP request-line.
+    :return dict: dictionary containing
+            method      the request method ("GET", "PUT", ...)
+            uri         the request URI, including the query (if any)
+            version     the HTTP version
+            parameter   dictionary with name=value pairs from the query
+    """
+    d = {key: value for key, value in zip(["method", "uri", "version"], line.decode("utf-8").split())}
+
+    d["parameter"] = query(line)
+
+    question = d["uri"].find("?")
+
+    d["path"] = d["uri"] if question == -1 else d["uri"][0:question]
+    d["query"] = "" if question == -1 else d["uri"][question + 1:]
+    d["header"] = dict()
+
+    return d

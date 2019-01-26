@@ -35,38 +35,37 @@ for pin in pins:
 
 serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serversocket.bind(socket.getaddrinfo("0.0.0.0", 80)[0][-1])
-serversocket.listen(2)
-
-header = dict()
+serversocket.listen()
 
 while True:
-    header.clear()
-
     conn, addr = serversocket.accept()
-    request = conn.readline()
+    request_line = conn.readline()
 
-    print("request:", request, "from", addr)
+    print("request:", request_line, "from", addr)
 
-    if request == b"" or request == b"\r\n":
+    if request_line in [b"", b"\r\n"]:
         print("malformed request")
         conn.close()
         continue
 
+    request = url.request(request_line)
+
     while True:
         line = conn.readline()
-        if line == b"" or line == b"\r\n":
+        if line in [b"", b"\r\n"]:
             break
 
         # add header fields to dictionary 'header'
+        header = request["header"]
         semicolon = line.find(b":")
         if semicolon != -1:
             key = line[0:semicolon].decode("utf-8")
             value = line[semicolon+1:-2].lstrip().decode("utf-8")
             header[key] = value
 
-    path = url.path(request)
+    path = request["path"]
 
-    if path == "/api/pin" and header.get("Accept") == "text/event-stream":
+    if path == "/api/pin" and request["header"].get("Accept") == "text/event-stream":
         conn.write("HTTP/1.1 200 OK\nServer: WiPy\nCache-Control: no-cache\n")
         conn.write("Connection: keep-alive\nContent-Type: text/event-stream\n\n")
 
@@ -81,13 +80,13 @@ while True:
             http.sendfile(conn, "index.html")
 
         if path == "/api/button":
-            query = url.query(request)
-            if "LED" in query:
-                if query["LED"] == "On":
+            parameter = request["parameter"]
+            if "LED" in parameter:
+                if parameter["LED"] == "On":
                     led(0)
                 else:
                     led(1)
-                conn.write(json.dumps({"LED": query["LED"]}))
+                conn.write(json.dumps({"LED": parameter["LED"]}))
 
         if path == "/api/toggle":
             led.toggle()  # no data sent back to the server here
