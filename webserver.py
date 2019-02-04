@@ -1,4 +1,5 @@
 from machine import Pin
+
 import socket
 import json
 import http
@@ -38,6 +39,9 @@ serversocket.bind(socket.getaddrinfo("0.0.0.0", 80)[0][-1])
 serversocket.listen()
 
 while True:
+    gc.collect()
+    print(gc.mem_free())
+
     conn, addr = serversocket.accept()
     request_line = conn.readline()
 
@@ -49,6 +53,7 @@ while True:
         continue
 
     request = url.request(request_line)
+    header = request["header"]
 
     while True:
         line = conn.readline()
@@ -56,7 +61,6 @@ while True:
             break
 
         # add header fields to dictionary 'header'
-        header = request["header"]
         semicolon = line.find(b":")
         if semicolon != -1:
             key = line[0:semicolon].decode("utf-8")
@@ -80,16 +84,16 @@ while True:
             http.sendfile(conn, "index.html")
 
         if path == "/api/button":
-            parameter = request["parameter"]
-            if "LED" in parameter:
-                if parameter["LED"] == "On":
+            parameters = request["parameters"]
+            if "LED" in parameters:
+                if parameters["LED"] == "On":
                     led(0)
                 else:
                     led(1)
-                conn.write(json.dumps({"LED": parameter["LED"]}))
+                conn.write(json.dumps({"LED": parameters["LED"]}))
 
         if path == "/api/toggle":
-            led.toggle()  # no data sent back to the server here
+            led.toggle()  # no response data sent back to the server here
 
         if path == "/api/init":
             pin_status = dict()
@@ -99,6 +103,3 @@ while True:
 
         conn.write("\n")
         conn.close()
-
-    gc.collect()
-    print(gc.mem_free())

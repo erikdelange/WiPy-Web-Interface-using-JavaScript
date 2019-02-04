@@ -1,32 +1,39 @@
-# Routines for decoding an HTTP request-line.
+# Routines for decoding an HTTP request line.
 #
-# HTTP request as understood by this package:
+# HTTP request line as understood by this package:
 #
-#   Request-Line = Method SP Request-URI SP HTTP-Version CRLF
-#   Request-URI = Path ? Query
+#   Request line: Method SP Request-URL SP HTTP-Version CRLF
+#   Request URL: Path ? Query
+#   Query: key=value&key=value
 #
-# Example: "GET /page?name1=0.07&name2=0.03&name3=0.13 HTTP/1.1\r\n"
+# Example: b"GET /page?key1=0.07&key2=0.03&key3=0.13 HTTP/1.1\r\n"
 #
-#   Method = GET
-#   Request-URI = /page?name1=0.07&name2=0.03&name3=0.13
-#   HTTP-version = HTTP/1.1
-#   Path = /page
-#   Query = name1=0.07&name2=0.03&name3=0.13
+#   Method: GET
+#   Request URL: /page?key1=0.07&key2=0.03&key3=0.13
+#   HTTP version: HTTP/1.1
+#   Path: /page
+#   Query: key1=0.07&key2=0.03&key3=0.13
 #
 # See also: https://www.tutorialspoint.com/http/http_requests.htm
+#           https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
+#
+# Intended use: memory constrained MicroPython server applications which
+# must communicate with a browser based user interface via Javascript
+# fetch() or XMLHttpRequest() API calls. Not a replacement for library's
+# like Requests.
 
 
 def query(request):
-    """ Extract all name=value pairs from a request-URI's query into a dict.
+    """ Place all key-value pairs from a request URL's query string into a dict.
 
-    Example: request b"GET /page?name1=0.07&name2=0.03&name3=0.13 HTTP/1.1\r\n"
-    yields dictionary {'name1': '0.07', 'name2': '0.03', 'name3': '0.13'}.
+    Example: request b"GET /page?key1=0.07&key2=0.03&key3=0.13 HTTP/1.1\r\n"
+    yields dictionary {'key1': '0.07', 'key2': '0.03', 'key3': '0.13'}.
 
-    :param str request: the complete HTTP request-line.
+    :param str request: the complete HTTP request line.
     :return dict: dictionary with zero of more entries.
     """
     d = dict()
-    p = request.find(b"?")  # only look in the query part of a request-URI
+    p = request.find(b"?")  # only look in the query part of a request URL
     if p != -1:
         p_space = request.find(b" ", p)
         while True:
@@ -35,7 +42,9 @@ def query(request):
             v_start = n_end + 1
             p_and = request.find(b"&", v_start)
             v_end = p_space if p_and == -1 else min(p_space, p_and)
-            d[request[n_start:n_end].decode("utf-8")] = request[v_start:v_end].decode("utf-8")
+            key = request[n_start:n_end].decode("utf-8")
+            if key not in d:
+                d[key] = request[v_start:v_end].decode("utf-8")
             p = v_end
             p = request.find(b"&", p)
             if p == -1:
@@ -43,20 +52,20 @@ def query(request):
     return d
 
 
-def value(request, name):
-    """ Extract the value for a single name=value pair from a request-URI's query.
+def value(request, key):
+    """ Return the value for a single key-value pair from a request URL's query string.
 
-    The query string may contain multiple name-value pairs. If name occurs
+    The query string may contain multiple key-value pairs. If key occurs
     multiple times in the query string the first value is extracted.
 
-    :param str request: the complete HTTP request-line.
-    :param str name: the name to search in the query.
-    :return value: None if name is not present in the URI query.
+    :param str request: the complete HTTP request line.
+    :param str key: the key to search in the query string.
+    :return value: None if key is not present in the URL's query string.
     """
     value = None
-    query = request.find(b"?")  # only look in the query part of a request-URI
+    query = request.find(b"?")  # only look in the query string of a request-URL
     if query != -1:
-        n_start = request.find(name.encode("utf-8"), query)
+        n_start = request.find(key.encode("utf-8"), query)
         if n_start != -1:
             v_start = request.find(b"=", n_start) + 1
             v_space = request.find(b" ", v_start)
@@ -67,13 +76,13 @@ def value(request, name):
 
 
 def path(request):
-    """ Extract the URI path from a HTTP request.
+    """ Extract the URL path from a HTTP request line.
 
-    Convention: the URI for an absolute path is never empty, at least a
+    Convention: the URL for an absolute path is never empty, at least a
     forward slash is present.
 
-    :param str request: the complete HTTP request-line.
-    :return str path: path, not including the query string
+    :param str request: the complete HTTP request line.
+    :return str path: path (without the query string)
     """
     u_start = request.find(b"/")
     p_space = request.find(b" ", u_start)
@@ -85,21 +94,40 @@ def path(request):
 def request(line):
     """ Separate an HTTP request line in its elements and put them into a dict.
 
-    :param str line: the complete HTTP request-line.
+    :param str line: the complete HTTP request line.
     :return dict: dictionary containing
             method      the request method ("GET", "PUT", ...)
-            uri         the request URI, including the query (if any)
+            url         the request URL, including the query string (if any)
+            path        the request path from the URL
+            query       the query string from the URL (if any, else "")
             version     the HTTP version
-            parameter   dictionary with name=value pairs from the query
+            parameters  dictionary with key-value pairs from the query string
+            header      placeholder for key-value pairs from request header fields
     """
-    d = {key: value for key, value in zip(["method", "uri", "version"], line.decode("utf-8").split())}
+    d = {key: value for key, value in zip(["method", "url", "version"], line.decode("utf-8").split())}
 
-    d["parameter"] = query(line)
+    d["parameters"] = query(line)
 
-    question = d["uri"].find("?")
+    question = d["url"].find("?")
 
-    d["path"] = d["uri"] if question == -1 else d["uri"][0:question]
-    d["query"] = "" if question == -1 else d["uri"][question + 1:]
+    d["path"] = d["url"] if question == -1 else d["url"][0:question]
+    d["query"] = "" if question == -1 else d["url"][question + 1:]
     d["header"] = dict()
 
     return d
+
+
+##if __name__ == "__main__":
+##
+##    request_lines = [ b"GET / HTTP/1.1\r\n",
+##                      b"GET /page/sub HTTP/1.1\r\n",
+##                      b"GET /page?key1=0.07&key1=0.03 HTTP/1.1\r\n",
+##                      b"GET /page?key1=0.07&key2=0.03 HTTP/1.1\r\n" ]
+##
+##    for line in request_lines:
+##        print(line)
+##        print("value  :", "key1 =", value(line, "key1"))
+##        print("query  :", query(line))
+##        print("path   :", path(line))
+##        print("request:", request(line))
+##        print()
