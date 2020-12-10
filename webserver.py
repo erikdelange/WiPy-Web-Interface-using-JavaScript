@@ -34,72 +34,75 @@ def pin_handler(arg):
 for pin in pins:
     pin.callback(Pin.IRQ_FALLING | Pin.IRQ_RISING, pin_handler)
 
-serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-serversocket.bind(socket.getaddrinfo("0.0.0.0", 80)[0][-1])
-serversocket.listen()
-
-while True:
-    gc.collect()
-    print(gc.mem_free())
-
-    conn, addr = serversocket.accept()
-    request_line = conn.readline()
-
-    print("request:", request_line, "from", addr)
-
-    if request_line in [b"", b"\r\n"]:
-        print("malformed request")
-        conn.close()
-        continue
-
-    request = url.request(request_line)
-    header = request["header"]
+try:
+    serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    serversocket.bind(socket.getaddrinfo("0.0.0.0", 80)[0][-1])
+    serversocket.listen()
 
     while True:
-        line = conn.readline()
-        if line in [b"", b"\r\n"]:
-            break
+        gc.collect()
+        print(gc.mem_free())
 
-        # add header fields to dictionary 'header'
-        semicolon = line.find(b":")
-        if semicolon != -1:
-            key = line[0:semicolon].decode("utf-8")
-            value = line[semicolon+1:-2].lstrip().decode("utf-8")
-            header[key] = value
+        conn, addr = serversocket.accept()
+        request_line = conn.readline()
 
-    path = request["path"]
+        print("request:", request_line, "from", addr)
 
-    if path == "/api/pin" and request["header"].get("Accept") == "text/event-stream":
-        conn.write("HTTP/1.1 200 OK\nServer: WiPy\nCache-Control: no-cache\n")
-        conn.write("Connection: keep-alive\nContent-Type: text/event-stream\n\n")
+        if request_line in [b"", b"\r\n"]:
+            print("malformed request")
+            conn.close()
+            continue
 
-        if client is None:  # first time connect
-            conn.write("retry: 60000\n\n")  # reconnect timeout of 60 seconds
-        client = conn
-    else:
-        conn.write("HTTP/1.1 200 OK\nServer: WiPy\n")
-        conn.write("Connection: close\nContent-Type: text/html\n\n")
+        request = url.request(request_line)
+        header = request["header"]
 
-        if path == "/":
-            http.sendfile(conn, "index.html")
+        while True:
+            line = conn.readline()
+            if line in [b"", b"\r\n"]:
+                break
 
-        if path == "/api/button":
-            parameters = request["parameters"]
-            if "LED" in parameters:
-                if parameters["LED"] == "On":
-                    led(0)
-                else:
-                    led(1)
-                conn.write(json.dumps({"LED": parameters["LED"]}))
+            # add header fields to dictionary 'header'
+            semicolon = line.find(b":")
+            if semicolon != -1:
+                key = line[0:semicolon].decode("utf-8")
+                value = line[semicolon+1:-2].lstrip().decode("utf-8")
+                header[key] = value
 
-        if path == "/api/toggle":
-            led.toggle()  # no response data sent back to the server here
+        path = request["path"]
 
-        if path == "/api/init":
-            pin_status = dict()
-            for pin in pins:
-                pin_status[pin.id()] = pin.value()
-            conn.write(json.dumps(pin_status))
+        if path == "/api/pin" and request["header"].get("Accept") == "text/event-stream":
+            conn.write("HTTP/1.1 200 OK\nServer: WiPy\nCache-Control: no-cache\n")
+            conn.write("Connection: keep-alive\nContent-Type: text/event-stream\n\n")
 
-        conn.write("\n")
-        conn.close()
+            if client is None:  # first time connect
+                conn.write("retry: 60000\n\n")  # reconnect timeout of 60 seconds
+            client = conn
+        else:
+            conn.write("HTTP/1.1 200 OK\nServer: WiPy\n")
+            conn.write("Connection: close\nContent-Type: text/html\n\n")
+
+            if path == "/":
+                http.sendfile(conn, "index.html")
+
+            if path == "/api/button":
+                parameters = request["parameters"]
+                if "LED" in parameters:
+                    if parameters["LED"] == "On":
+                        led(0)
+                    else:
+                        led(1)
+                    conn.write(json.dumps({"LED": parameters["LED"]}))
+
+            if path == "/api/toggle":
+                led.toggle()  # no response data sent back to the server here
+
+            if path == "/api/init":
+                pin_status = dict()
+                for pin in pins:
+                    pin_status[pin.id()] = pin.value()
+                conn.write(json.dumps(pin_status))
+
+            conn.write("\n")
+            conn.close()
+except Exception as e:
+    print("Exception", e)
