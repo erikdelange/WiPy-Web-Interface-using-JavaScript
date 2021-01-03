@@ -1,5 +1,5 @@
 # WiPy 2.0 Web Interface using JavaScript
-A JavaScript based web interface to control the LED and user button on WiPy Expansion Board 2.0
+A JavaScript based web interface to control the LED and read the user button status on WiPy Expansion Board 2.0
 
 ### Summary
 WiPy Expansion Board 2.0 contains a user controllable led and a push-button. In [this repository](https://github.com/erikdelange/WiPy-2.0-Web-Interface) a simple web interface was presented to control this led and display the status of the button (plus one additional input pin). This solution has two disadvantages.
@@ -29,7 +29,7 @@ Instead of the client polling for changes in the button status, I'm using Server
 ### Python Code
 The server waits for a new HTML request. The first line of the request contains the path and optionally the query parameters. These are unpacked into dictionary *request*. Subsequent request lines contain the header fields and are recorded in dictionary *header*. A request for path "/api/pin" keeps the connection to the client open for server sent events ("keep-alive"). Notice the different response headers here compared to other request paths.
 
-An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and transmits the new button status to the client (of course only if the client has expressed its interest in this event previously). To see this in action keep the button on you Expansion Board pressed for a few seconds and watch the UI.
+An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and transmits the new button status to the client (of course only if the client has expressed its interest in this event previously). To see this in action keep the button on your Expansion Board pressed for a few seconds and watch the UI.
 
 The webpage in index.html is - at least for the WiPy 2's memory - quite large (4K). To save memory it is sent to the client in chuncks of 512 bytes. In this way only the space for a 512 byte buffer needs to be allocated which reduces the chance for out of memory exceptions. See function sendfile in http.py.
 ``` python
@@ -57,8 +57,7 @@ The resulting web page looks like this.
 * WiPy 2.0
 * Pycom MicroPython 1.20.0.rc1 [v1.9.4-bc4d7d0] on 2018-12-12; WiPy with ESP32
 * Expansion Board 2
-* Chrome Version 71.0.3578.98 (64-bits)
+* Chrome Version 87.0.4280.88 (64-bits)
+* Edge Version 87.0.664.66 (64-bits)
 
-Unfortunately Server Sent Events do not (yet) work in Internet Explorer and Edge.
-
-Use F12 on Chrome and have a look the messages printed in the console.
+Use F12 on Chrome or Edge and have a look the messages printed in the console.
