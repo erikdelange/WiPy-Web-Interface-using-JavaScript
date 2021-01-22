@@ -1,1 +1,1 @@
-# do 'import webserver' to start the webserver
+# do 'import webserver' and 'webserver.start()' to start the webserver
