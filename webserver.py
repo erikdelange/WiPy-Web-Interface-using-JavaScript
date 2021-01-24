@@ -129,7 +129,7 @@ def server(host="0.0.0.0", port=80):
                             conn.write(json.dumps({"LED": parameters["LED"]}))
                     elif path == "/api/toggle":
                         led.toggle()
-                        conn.write(b"\r\n")  #?
+                        conn.write(b"\r\n")
                     elif path == "/api/stop":  # stop server, for dev purposes
                         conn.write(b"\r\n")
                         conn.close()
