@@ -1,5 +1,5 @@
 # Routines for decoding an HTTP request line.
-#
+# 
 # HTTP request line as understood by this package:
 #
 #   Request line: Method SP Request-URL SP HTTP-Version CRLF
