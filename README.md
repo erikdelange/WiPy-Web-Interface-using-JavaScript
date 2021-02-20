@@ -3,13 +3,13 @@ A JavaScript based web interface to control the LED and read the user button sta
 
 ### Summary
 WiPy Expansion Board 2.0 contains a user controllable led and a push-button. In [this repository](https://github.com/erikdelange/WiPy-2.0-Web-Interface) a simple web interface was presented to control this led and display the status of the button (plus one additional input pin). This solution has two disadvantages.
-1. The button status is transmitted using 'submit'. As a results the client expects a new webpage. Quite inefficient if nothing in the displayed page changes.
-2. The status of the button is retrieved by periodically refreshing the whole web page. Ideally this would be initiated from the server only when the button is actually pressed or released.
+1. A new led state is transmitted using 'submit'. As a results the client expects a new webpage. Quite inefficient if nothing in the displayed page changes.
+2. The status of the expansion boards button is retrieved by periodically refreshing the whole web page. Ideally this would be initiated from the server only when the button is actually pressed or released.
 
 This example shows how JavaScript helps to solve this and streamlines the communication between client and server.
 
 ### HTML and JavaScript
-The HTML code in *index.html* uses the W3.CSS framework for formatting the web page. The key elements to look for in the HTML code are the empty space where the table body which will hold the status of the WiPy's buttons will be placed, and the three buttons to switch the led on or off.
+The HTML code in *index.html* uses the W3.CSS framework for formatting the web page. The key elements to look for in the HTML code are the empty line where the table body will be placed which will hold the status of the WiPy's buttons, and the three buttons to switch the led, off or toggle it.
 
 The JavaScript code consists of three event handlers. *onLoadEvent()* is run once, immediately after the page has been loaded. It requests the initial content of the button table from the server, and starts listening to the server for changes to the expansion boards button status. Event handlers *onClickEvent()* and *onToggleEvent()* are fired when one of the three buttons in the UI is clicked, and inform the server of this fact.
 
@@ -24,14 +24,18 @@ function onToggleEvent(event) {
 ```
 If the server also returns data in its reply function then function *onClickEvent()* shows how to handle this.
 
-Instead of the client polling for changes in the button status, I'm using Server Sent Events. This creates a connection from the server to the client which stays open. The server can then publish updates via this connection. An event listener on the client only catches a specific event (here: pin_change).
+Instead of the client polling for changes in the button status, I'm using Server Sent Events. This creates a connection from the server to the client which stays open. The server can then publish updates via this connection. An event listener on the client only catches a specific event (here named: pin_change).
 
 ### Python Code
-The server waits for a new HTML request. The first line of the request contains the path and optionally the query parameters. These are unpacked into dictionary *request*. Subsequent request lines contain the header fields and are recorded in dictionary *header*. A request for path "/api/pin" keeps the connection to the client open for server sent events ("keep-alive"). Notice the different response headers here compared to other request paths.
+A small generic HTML server is used, which can be found in *server.py*. It waits for incoming HTML requests. The first line of the request contains the path and optionally the query parameters. These are unpacked into dictionary *request*. Subsequent request lines contain the header fields and are recorded in dictionary *header*.
+
+For every combination of method plus path (like "GET" and "/index") which must be handled by the HTML server a function is declared in *main.py*. When the function definition is preceded by decorator *@route* the function is registered within *server.py* as a handler for the specified method path combination. In this way the code for the server itself remains hidden and generic; you only need to define the handlers.
+
+A GET request for path "/api/pin" is special as it keeps the connection to the client open for server sent events ("keep-alive"). Notice the different response headers here compared to other request paths.
 
 An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and transmits the new button status to the client (of course only if the client has expressed its interest in this event previously). To see this in action keep the button on your Expansion Board pressed for a few seconds and watch the UI.
 
-The webpage in index.html is - at least for the WiPy 2's memory - quite large (4K). To save memory it is sent to the client in chuncks of 512 bytes. In this way only the space for a 512 byte buffer needs to be allocated which reduces the chance for out of memory exceptions. See function sendfile in http.py.
+The webpage in index.html and the favicon.ico are - at least for a WiPy 2's memory - quite large (4K resp. 15K). To save memory they are sent to the client in chuncks of 512 bytes. In this way only the space for a 512 byte buffer needs to be allocated which reduces the chance for out of memory exceptions. See function sendfile in http.py.
 ``` python
 buffer = bytearray(512)
 bmview = memoryview(buffer)
@@ -55,9 +59,9 @@ The resulting web page looks like this.
 
 ### Using
 * WiPy 2.0
-* Pycom MicroPython 1.20.0.rc1 [v1.9.4-bc4d7d0] on 2018-12-12; WiPy with ESP32
+* Pycom MicroPython 1.20.2.r4 [v1.11-ffb0e1c] on 2021-01-12; WiPy with ESP32
 * Expansion Board 2
-* Chrome Version 87.0.4280.88 (64-bits)
-* Edge Version 87.0.664.66 (64-bits)
+* Chrome Version 88.0.4324.182 (64-bits)
+* Edge Version 88.0.705.74 (64-bits)
 
-Use F12 on Chrome or Edge and have a look the messages printed in the console.
+Use F12 on Chrome or Edge and have a look the debug messages printed in the console.
