@@ -6,7 +6,7 @@
 #
 #   from server import route, run, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
 #
-#   @route("GET", "\")
+#   @route("GET", "/")
 #   def root(conn, request):
 #       conn.write(b"HTTP/1.1 200 OK\r\n")
 #       conn.write(b"Connection: close\r\n")
@@ -18,15 +18,15 @@
 #
 # Handlers for the (method, path) combinations must be decrorated with
 # @route, and declared before the server is started (via a call to run).
-# The handler receives the connection socket and a dict with all the
+# Every handler receives the connection socket and a dict with all the
 # details from the request (see url.py for exact content).
 # When leaving the handler the connection is expected to be closed,
 # unless the return code of the handler is CONNECTION_KEEP_ALIVE.
-# Any combination of (method, path) which has not been declared will,
-# when received by the server, result in a 404 http error.
+# Any combination of (method, path) which has not been declared using
+# @route will, when received by the server, result in a 404 http error.
 # The server cannot be stopped unless an alert is raised. If a Handler
 # wants to stop the server it should use 'raise Exception("Stop Server")'.
-# This will cause a graceful exit.
+# Only this exception will cause a graceful exit.
 
 import socket
 import errno
@@ -104,7 +104,8 @@ def run(port=80):
             func = _routes.get((request["method"], request["path"]))
             if func:
                 if func(conn, request) != CONNECTION_KEEP_ALIVE:
-                    conn.close()  # close connection unless explicilty kept alive
+                    # close connection unless explicitly kept alive
+                    conn.close()  
             else:  # no function found for (method, path) combination
                 conn.write(b"HTTP/1.1 404 Not Found\r\n")
                 conn.write(b"Connection: close\r\n\r\n")
@@ -112,7 +113,7 @@ def run(port=80):
 
         except Exception as e:
             conn.close()
-            if e.args[0] == errno.ECONNRESET:
+            if e.args[0] == errno.ECONNRESET:  # client reset the connection
                 pass
             elif e.args[0] == "Stop Server":  # magic exception to stop server
                 break
