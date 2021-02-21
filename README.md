@@ -1,8 +1,8 @@
 # WiPy 2.0 Web Interface using JavaScript
-A JavaScript based web interface to control the LED and read the user button status on WiPy Expansion Board 2.0
+A JavaScript based web interface to control the LED and read the user button status on Pycoms Expansion Board 2.0
 
 ### Summary
-WiPy Expansion Board 2.0 contains a user controllable led and a push-button. In [this repository](https://github.com/erikdelange/WiPy-2.0-Web-Interface) a simple web interface was presented to control this led and display the status of the button (plus one additional input pin). This solution has two disadvantages.
+Pycoms Expansion Board 2.0 contains a user controllable led and a push-button. In [this repository](https://github.com/erikdelange/WiPy-2.0-Web-Interface) a simple web interface was presented to control this led and display the status of the button (plus one additional input pin). This solution has two disadvantages.
 1. A new led state is transmitted using 'submit'. As a results the client expects a new webpage. Quite inefficient if nothing in the displayed page changes.
 2. The status of the expansion boards button is retrieved by periodically refreshing the whole web page. Ideally this would be initiated from the server only when the button is actually pressed or released.
 
