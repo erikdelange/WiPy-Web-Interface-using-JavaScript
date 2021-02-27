@@ -29,7 +29,7 @@ Instead of the client polling for changes in the button status, I'm using Server
 ### Python Code
 A small generic HTML server is used, which can be found in *server.py*. It waits for incoming HTML requests. The first line of the request contains the path and optionally the query parameters. These are unpacked into dictionary *request*. Subsequent request lines contain the header fields and are recorded as name-value pairs in dictionary *header*.
 
-##### Routing client requests using decorators
+#### Routing client requests using decorators
 For every combination of method plus path (like "GET" and "/index") which must be handled by the HTML server a function is declared in *main.py*. When the function definition is preceded by decorator *@route* the function is registered within *server.py* as a handler for the specified method-path combination. In this way the code for the server itself remains hidden and generic; you only need to define the handlers. See the comments in *server.py* for more details.
 ``` python
 from server import route, run, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
@@ -45,13 +45,13 @@ def root(conn, request):
 
 run(port=80)
 ```
-##### Connection Keep-Alive
+#### Connection Keep-Alive
 A GET request for path "/api/pin" is special as it keeps the connection to the client open for server sent events ("keep-alive"). Notice the different response headers here compared to other request paths.
 
-##### Pin change interrupt
+#### Pin change interrupt
 An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and transmits the new button status to the client (of course only if the client has expressed its interest in this event previously). To see this in action keep the button on your Expansion Board pressed for a few seconds and watch the UI.
 
-##### Sending large files
+#### Sending large files
 The webpage in index.html and the favicon.ico are - at least for a WiPy 2's memory - quite large (4K resp. 15K). To save memory they are sent to the client in chuncks of 512 bytes. In this way only the space for a 512 byte buffer needs to be allocated which reduces the chance for out of memory exceptions. See function sendfile in *sendfile.py*.
 ``` python
 _buffer = bytearray(512)
