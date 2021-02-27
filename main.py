@@ -2,8 +2,8 @@ import json
 
 from machine import Pin
 
-import http
 from server import route, run, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
+from sendfile import sendfile
 
 # Connect variable 'led' to the user led on the expansion board
 led = Pin(Pin.exp_board.G16, mode=Pin.OUT)
@@ -58,7 +58,7 @@ def root(conn, request):
     conn.write(b"HTTP/1.1 200 OK\r\n")
     conn.write(b"Connection: close\r\n")
     conn.write(b"Content-Type: text/html\r\n\r\n")
-    http.sendfile(conn, "index.html")
+    sendfile(conn, "index.html")
     return CONNECTION_CLOSE
 
 
@@ -67,7 +67,7 @@ def favicon(conn, request):
     conn.write(b"HTTP/1.1 200 OK\r\n")
     conn.write(b"Connection: close\r\n")
     conn.write(b"Content-Type: image/x-icon\r\n\r\n")
-    http.sendfile(conn, "favicon.ico")
+    sendfile(conn, "favicon.ico")
     return CONNECTION_CLOSE
 
 

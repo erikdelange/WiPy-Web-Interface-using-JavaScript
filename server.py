@@ -2,21 +2,20 @@
 #
 # Usage:
 #
-#   import http
-#
 #   from server import route, run, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
+#   from sendfile import sendfile
 #
 #   @route("GET", "/")
 #   def root(conn, request):
 #       conn.write(b"HTTP/1.1 200 OK\r\n")
 #       conn.write(b"Connection: close\r\n")
 #       conn.write(b"Content-Type: text/html\r\n\r\n")
-#       http.sendfile(conn, "index.html")
+#       sendfile(conn, "index.html")
 #       return CONNECTION_CLOSE
 #
 #   run(port=80)
 #
-# Handlers for the (method, path) combinations must be decrorated with
+# Handlers for the (method, path) combinations must be decorated with
 # @route, and declared before the server is started (via a call to run).
 # Every handler receives the connection socket and a dict with all the
 # details from the request (see url.py for exact content).
@@ -27,11 +26,12 @@
 # The server cannot be stopped unless an alert is raised. If a Handler
 # wants to stop the server it should use 'raise Exception("Stop Server")'.
 # Only this exception will cause a graceful exit.
+#
+# MIT license / Copyright 2021 (c) Erik de Lange
 
 import socket
 import errno
 
-import http
 import url
 
 CONNECTION_CLOSE = const(0)
@@ -93,7 +93,7 @@ def run(port=80):
             except url.InvalidRequest as e:
                 conn.write(b"HTTP/1.1 400 Bad Request\r\n")
                 conn.write(b"Connection: close\r\n")
-                conn.write("Content-Type: text/html\r\n\r\n")
+                conn.write(b"Content-Type: text/html\r\n\r\n")
                 conn.write(bytes(repr(e), "utf-8"))
                 conn.close()
                 continue
@@ -103,17 +103,18 @@ def run(port=80):
             # Search function which is connected to (method, path)
             func = _routes.get((request["method"], request["path"]))
             if func:
-                if func(conn, request) != CONNECTION_KEEP_ALIVE:
-                    # close connection unless explicitly kept alive
-                    conn.close()  
+                if func(conn, request) == CONNECTION_KEEP_ALIVE:
+                    # skip closing connection when explicitly kept alive
+                    continue
             else:  # no function found for (method, path) combination
                 conn.write(b"HTTP/1.1 404 Not Found\r\n")
                 conn.write(b"Connection: close\r\n\r\n")
-                conn.close()
+
+            conn.close()
 
         except Exception as e:
             conn.close()
-            if e.args[0] == errno.ECONNRESET:  # client reset the connection
+            if e.args[0] == errno.ECONNRESET:  # client did reset the connection
                 pass
             elif e.args[0] == "Stop Server":  # magic exception to stop server
                 break

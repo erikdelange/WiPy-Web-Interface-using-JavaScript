@@ -18,6 +18,8 @@
 #           https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
 #
 # For MicroPython applications which have to process HTTP requests.
+#
+# MIT license / Copyright 2021 (c) Erik de Lange
 
 
 class InvalidRequest(Exception):
@@ -40,6 +42,8 @@ def query(request):
         while True:
             n_start = p + 1
             n_end = request.find(b"=", n_start)
+            if n_end == -1:
+                break
             v_start = n_end + 1
             p_and = request.find(b"&", v_start)
             v_end = p_space if p_and == -1 else min(p_space, p_and)
@@ -88,6 +92,7 @@ if __name__ == "__main__":
 
     request_lines = [b"GET / HTTP/1.1\r\n",
                      b"GET /page/sub HTTP/1.1\r\n",
+                     b"GET /page?key1=0.07&key2=0.03 HTTP/1.1\r\n",
                      b"GET /page?key1=0.07&key1=0.03 HTTP/1.1\r\n",
                      b"GET HTTP/1.1\r\n"]
 
