@@ -83,7 +83,3 @@ The resulting web page looks like this.
 * Expansion Board 2
 
 The JavaScript code in index.html prints various logging messages. Use F12 on Chrome or Edge and have a look these messages in the console.
-
-### Updates
-- 2022-01-08: Converted the server into a class and created package httpserver
-- 2022-01-08: Added connection timeout
