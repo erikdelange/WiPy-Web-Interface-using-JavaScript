@@ -2,8 +2,9 @@ import json
 
 from machine import Pin
 
-from server import route, run, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
-from sendfile import sendfile
+from httpserver import sendfile, Server, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
+
+app = Server()
 
 # Connect variable 'led' to the user led on the expansion board
 led = Pin(Pin.exp_board.G16, mode=Pin.OUT)
@@ -35,43 +36,46 @@ for pin in pins:
     pin.callback(Pin.IRQ_FALLING | Pin.IRQ_RISING, pin_handler)
 
 
-@route("GET", "/api/pin")
+@app.route("GET", "/api/pin")
 def api_pin(conn, request):
     global client
     if request["header"].get("Accept") == "text/event-stream":
         conn.write(b"HTTP/1.1 200 OK\r\n")
         conn.write(b"Cache-Control: no-cache\r\n")
         conn.write(b"Connection: keep-alive\r\n")
-        conn.write(b"Content-Type: text/event-stream\r\n\r\n")
+        conn.write(b"Content-Type: text/event-stream\r\n")
+        conn.write(b"\r\n")
 
         if client is None:  # first time connect
             conn.write(b"retry: 60000\r\n\r\n")  # reconnect timeout of 60 seconds
         client = conn
 
-        return CONNECTION_KEEP_ALIVE
+        return CONNECTION_KEEP_ALIVE  # makes sure server does not close this connection
 
     return CONNECTION_CLOSE
 
 
-@route("GET", "/")
+@app.route("GET", "/")
 def root(conn, request):
     conn.write(b"HTTP/1.1 200 OK\r\n")
     conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: text/html\r\n\r\n")
+    conn.write(b"Content-Type: text/html\r\n")
+    conn.write(b"\r\n")
     sendfile(conn, "index.html")
     return CONNECTION_CLOSE
 
 
-@route("GET", "/favicon.ico")
+@app.route("GET", "/favicon.ico")
 def favicon(conn, request):
     conn.write(b"HTTP/1.1 200 OK\r\n")
     conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: image/x-icon\r\n\r\n")
+    conn.write(b"Content-Type: image/x-icon\r\n")
+    conn.write(b"\r\n")
     sendfile(conn, "favicon.ico")
     return CONNECTION_CLOSE
 
 
-@route("GET", "/api/init")
+@app.route("GET", "/api/init")
 def api_init(conn, request):
     pin_status = dict()
     for pin in pins:
@@ -79,12 +83,13 @@ def api_init(conn, request):
 
     conn.write(b"HTTP/1.1 200 OK\r\n")
     conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: text/html\r\n\r\n")
+    conn.write(b"Content-Type: text/html\r\n")
+    conn.write(b"\r\n")
     conn.write(json.dumps(pin_status))
     return CONNECTION_CLOSE
 
 
-@route("GET", "/api/button")
+@app.route("GET", "/api/button")
 def api_button(conn, request):
     conn.write(b"HTTP/1.1 200 OK\r\n")
     conn.write(b"Connection: close\r\n")
@@ -97,20 +102,22 @@ def api_button(conn, request):
     return CONNECTION_CLOSE
 
 
-@route("GET", "/api/toggle")
+@app.route("GET", "/api/toggle")
 def api_toggle(conn, request):
     global led
     led.toggle()
     conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n\r\n")
+    conn.write(b"Connection: close\r\n")
+    conn.write(b"\r\n")
     return CONNECTION_CLOSE
 
 
-@route("GET", "/api/stop")
+@app.route("GET", "/api/stop")
 def stop(conn, request):
     conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n\r\n")
+    conn.write(b"Connection: close\r\n")
+    conn.write(b"\r\n")
     raise Exception("Stop Server")
 
 
-run(port=80)
+app.start()
