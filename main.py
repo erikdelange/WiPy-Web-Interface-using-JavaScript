@@ -97,6 +97,7 @@ def api_button(conn, request):
     if "LED" in parameters:
         led(0) if parameters["LED"] == "On" else led(1)
         conn.write(b"Content-Type: text/html\r\n")
+        conn.write(b"\r\n")
         conn.write(json.dumps({"LED": parameters["LED"]}))
     conn.write("\r\n")
     return CONNECTION_CLOSE
