@@ -1,7 +1,7 @@
 # Components of HTTP/1.1 reponses
 #
 # Use when manually composing an HTTP response
-# Expand as requried for your use
+# Expand as required for your use
 #
 # For HTTP/1.1 specification see: https://www.ietf.org/rfc/rfc2616.txt
 # For MIME types see: https://www.iana.org/assignments/media-types/media-types.xhtml
