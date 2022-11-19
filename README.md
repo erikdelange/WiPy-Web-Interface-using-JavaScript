@@ -1,85 +1,76 @@
-# WiPy 2.0 Web Interface using JavaScript
-A JavaScript based web interface to control the LED and read the user button status on a Pycom Expansion Board 2.0
+# MicroPython web interface using server-sent events and JavaScript
+A MicroPython and JavaScript based web interface for a WiPy to control the LED and display the user button status on a Pycom Expansion Board 2.0
 
 ### Summary
 Pycoms Expansion Board 2.0 contains a user controllable led and a push-button. In [this repository](https://github.com/erikdelange/WiPy-2.0-Web-Interface) a simple web interface was presented to control this led and display the status of the button (plus one additional input pin). This solution has two disadvantages.
-1. A new led state (buttons on / off / toggle) is transmitted to the server using HTML's 'submit' input type. As a results the client expects a new webpage. Quite inefficient if nothing on the displayed page changes.
+1. A new led state (button on / off / toggle) is transmitted to the server using HTML's 'submit' input type. As a response the client expects a new webpage. Quite inefficient if nothing on the displayed page changes.
 2. The status of the expansion boards button is retrieved by periodically refreshing the whole web page. Ideally this would be initiated from the server only when the button is actually pressed or released.
 
-This example shows how JavaScript helps to solve this and streamlines the communication between client and server.
+This example shows how server-sent events and JavaScript help to solve these issues and streamline the communication between server and client.
 
 ### HTML and JavaScript
-The HTML code in *index.html* uses the W3.CSS framework for formatting the web page. The key elements to look for in the HTML code are the empty line where a javascript function will place the table body which holds the status of the WiPy's buttons, and the three buttons to switch the led, off or toggle it.
+The HTML code in *index.html* uses the W3.CSS framework for formatting the web page. The key elements to look for in the HTML code are the empty line where a javascript function will place the table body which holds the status of the WiPy's buttons, and the three buttons to switch the led on, off or toggle it.
 
 The JavaScript code consists of three event handlers. *onLoadEvent()* is run once, immediately after the page has been loaded. It requests the initial content of the button table from the server, and starts listening to the server for changes to the expansion boards button status. Event handlers *onClickEvent()* and *onToggleEvent()* are fired when one of the three buttons in the UI is clicked, and inform the server of this fact.
 
-### Fetch API and Server Sent Events
-For sending information to the server (and optionally receiving response data) I use the fetch() API instead of XMLHttpRequest. Its most simple appearance (with some helper functions from the Google Developers site) is:
+### Fetch API and server-sent events
+For sending information to the server (and optionally receiving response data) I use the fetch() API. Its most simple appearance (with some helper functions from the Google Developers site) is:
 ``` JavaScript
 function onToggleEvent(event) {
   fetch("/api/toggle")
   .then(validateResponse)
-  .catch (logError);
+  .catch(logError);
 }
 ```
-If the server also returns data in its reply function then function *onClickEvent()* shows how to handle this.
+If the server returns data in its reply function then function *onClickEvent()* provides an example how to handle this.
 
-Instead of the client polling for changes in the button status, I'm using Server Sent Events. This creates a connection from the server to the client which stays open. The server can then publish updates via this connection. An event listener on the client only catches a specific event (here named: pin_change).
+Instead of the client polling for changes in the button status, I'm using server-sent events. This creates a connection from the server to the client which stays open. The server can then publish updates via this connection. An event listener on the client is started which listens to a specific event of type 'pin_change'.
+``` JavaScript
+// Setup server sent event listener
+const eventSource = new EventSource("/api/pin");
+
+eventSource.addEventListener("pin_change", (event) => {
+  console.log("pin_change event:", event, "data:", data);
+});
+```
 
 ### Python Code
-A small generic HTTP server is used, which can be found in package *httpserver*, file *server.py*. It waits for incoming HTTP requests. The first line of the request contains the path and optionally the query parameters. These are unpacked into dictionary *request*. Subsequent request lines contain the header fields and are recorded as name-value pairs in dictionary *header*.
+Interaction with the UI is handled via a small HTTP server, which can be found in package [*ahttpserver*](https://github.com/erikdelange/MicroPython-HTTP-Server).
 
-#### Routing client requests using decorators
-For every combination of method plus path (like "GET" and "/index") which must be handled by the HTTP server a function is declared in *main.py*. By preceding the function definition with decorator *@route* the function is registered within *server.py* as a handler for the specified method-path combination. In this way the code for the server itself remains hidden and generic; you only need to define the handlers. See the comments in *server.py* for more details. The server is so simple that you need to craft HTTP responses yourself line by line. Use *response.py* for
-a bit of help.
-``` python
-from httpserver import sendfile, Server, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
-
-app = Server()
-
-@app.route("GET", "/")
-def root(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: text/html\r\n")
-    conn.write(b"\r\n")
-    sendfile(conn, "index.html")
-    return CONNECTION_CLOSE
-
-app.start()
-```
 #### Connection Keep-Alive
-A GET request for path "/api/pin" is special as it keeps the connection to the client open for server sent events ("keep-alive"). Notice the different response headers here compared to other request paths.
+A GET request for path "/api/pin" is special as it keeps the connection to the client open for sending updates. So, the connection handler does not return until the client has disappeared or closed the connection. An EventSource object is used to communicate with the client to make sure the information sent conforms to the event stream format (but you could also arrange this by hand).
 
 #### Pin change interrupt
-An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and transmits the new button status to the client (of course only if the client has expressed its interest in this event previously). To see this in action keep the button on your Expansion Board pressed for a few seconds and watch the UI.
+An interrupt callback is attached to expansion boards button i.e. pin object. On every pin level change it is called and sets an asyncio Event. The connection handler for "/api/pin" is waiting for this event to be set, and then wakes up to send the new button status to the client (of course only if a client has previously expressed its interest in this event). To see this in action keep the button on your Expansion Board pressed for a few seconds and watch the UI.
+``` Python
+from uasyncio import Event
 
-#### Sending large files
-The webpage in index.html and the favicon.ico are - at least for a WiPy 2's memory - quite large (4K resp. 15K). To save memory they are sent to the client in chuncks of 512 bytes. In this way only the space for a 512 byte buffer needs to be allocated which reduces the chance for out of memory exceptions. See function sendfile in *sendfile.py*.
-``` python
-_buffer = bytearray(512)
-_bmview = memoryview(_buffer)
+pb_event = Event()  # pushbutton event
 
-def sendfile(conn, filename):
-    """ Send a file to a connection in chuncks - lowering memory usage.
-
-    :param socket conn: connection to send the file to
-    :param str filename: file the send
-    """
-    with open(filename, "rb") as fp:
-        while True:
-            n = fp.readinto(_buffer)
-            if n == 0:
-                break
-            conn.write(_bmview[:n])
+@app.route("GET", "/api/pin")
+async def api_pin(reader, writer, request):
+    eventsource = await EventSource.upgrade(reader, writer)
+    while True:
+        await pb_event.wait()
+        pb_event.clear()
+        try:
+            d = dict()
+            for i, pin in enumerate(pins):
+                d[i] = pin.value()
+            await eventsource.send(event="pin_change", data=json.dumps(d))
+        except Exception as e:  # catch (a.o.) ECONNRESET when the client has disappeared
+            break  # close connection
 ```
+
 The resulting web page looks like this.
 
 ![ui.png](https://github.com/erikdelange/WiPy-2.0-Web-Interface-using-JavaScript/blob/master/ui.png)
 
-### Using
-* WiPy 2.0
-* Pycom MicroPython 1.20.2.r4 [v1.11-ffb0e1c] on 2021-01-12; WiPy with ESP32
-* Expansion Board 2
-
 The JavaScript code in index.html prints various logging messages. Use F12 on Chrome or Edge and have a look these messages in the console.
+
+### Using
+* WiPy 3.0 using the official MicroPython firmware from micropyton.org instead of Pycom's variant
+* MicroPython v1.19.1 on 2022-11-03; ESP32 module (spiram) with ESP32
+* Pycom Expansion Board 2
+* Package *ahttpserver* which can be found [here](https://github.com/erikdelange/MicroPython-HTTP-Server).
+* Module *abutton* from [Kevin Köck](https://github.com/kevinkk525/pysmartnode/blob/master/pysmartnode/utils/abutton.py).
