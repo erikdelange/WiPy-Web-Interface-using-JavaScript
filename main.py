@@ -1,124 +1,132 @@
 import json
 
-from machine import Pin
+import uasyncio as asyncio
+from machine import Pin, Signal
+from uasyncio import Event
 
-from httpserver import sendfile, Server, CONNECTION_CLOSE, CONNECTION_KEEP_ALIVE
+import abutton
+import expboard2
+from ahttpserver import (CRLF, EventSource, MimeType, ResponseHeader, Server, StatusLine, sendfile)
 
 app = Server()
 
 # Connect variable 'led' to the user led on the expansion board
-led = Pin(Pin.exp_board.G16, mode=Pin.OUT)
-led(1)  # off
+led = Signal(expboard2.LED, Pin.OUT, value=0, invert=True)
 
 # Connect 'pins' to the user button on the expansion board plus one additional pin
-pins = [Pin(i, mode=Pin.IN, pull=Pin.PULL_UP) for i in (Pin.exp_board.G17, Pin.exp_board.G22)]
+pins = [Pin(i, Pin.IN, Pin.PULL_UP) for i in (expboard2.BUTTON, 14)]
 
-client = None
-
-
-def pin_handler(arg):
-    """ Callback for pin interrupt: send new pin value to the client.
-
-    This implementation can handle only one client.
-    """
-    global client
-    print("pin_handler interrupt: pin %s (%d)" % (arg.id(), arg.value()))
-    if client is not None:
-        try:
-            client.write("event: pin_change\ndata: {\"%s\": %d}\n\n" % (arg.id(), arg.value()))
-        except Exception as e:  # catch (a.o.) ECONNRESET when the client has disappeared
-            print("pin_handler exception:", e)
-            client = None
-
-
-for pin in pins:
-    """Set the callback for pin changes. """
-    pin.callback(Pin.IRQ_FALLING | Pin.IRQ_RISING, pin_handler)
+pb_event = Event()  # pushbutton event
 
 
 @app.route("GET", "/api/pin")
-def api_pin(conn, request):
-    global client
-    if request["header"].get("Accept") == "text/event-stream":
-        conn.write(b"HTTP/1.1 200 OK\r\n")
-        conn.write(b"Cache-Control: no-cache\r\n")
-        conn.write(b"Connection: keep-alive\r\n")
-        conn.write(b"Content-Type: text/event-stream\r\n")
-        conn.write(b"\r\n")
-
-        if client is None:  # first time connect
-            conn.write(b"retry: 60000\r\n\r\n")  # reconnect timeout of 60 seconds
-        client = conn
-
-        return CONNECTION_KEEP_ALIVE  # makes sure server does not close this connection
-
-    return CONNECTION_CLOSE
+async def api_pin(reader, writer, request):
+    eventsource = await EventSource.upgrade(reader, writer)
+    await eventsource.retry(5000)
+    while True:
+        await pb_event.wait()
+        pb_event.clear()
+        try:
+            d = dict()
+            for i, pin in enumerate(pins):
+                d[i] = pin.value()
+            await eventsource.send(event="pin_change", data=json.dumps(d))
+        except Exception as e:  # catch (a.o.) ECONNRESET when the client has disappeared
+            print("api_pin exception:", e)  # debug
+            break  # close connection
 
 
 @app.route("GET", "/")
-def root(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: text/html\r\n")
-    conn.write(b"\r\n")
-    sendfile(conn, "index.html")
-    return CONNECTION_CLOSE
+async def root(reader, writer, request):
+    writer.write(StatusLine.OK_200)
+    writer.write(ResponseHeader.CONNECTION_CLOSE)
+    writer.write(MimeType.TEXT_HTML)
+    writer.write(CRLF)
+    await writer.drain()
+    await sendfile(writer, "index.html")
 
 
 @app.route("GET", "/favicon.ico")
-def favicon(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: image/x-icon\r\n")
-    conn.write(b"\r\n")
-    sendfile(conn, "favicon.ico")
-    return CONNECTION_CLOSE
+async def favicon(reader, writer, request):
+    writer.write(StatusLine.OK_200)
+    writer.write(ResponseHeader.CONNECTION_CLOSE)
+    writer.write(MimeType.IMAGE_X_ICON)
+    writer.write(CRLF)
+    await writer.drain()
+    await sendfile(writer, "favicon.ico")
 
 
 @app.route("GET", "/api/init")
-def api_init(conn, request):
+async def api_init(reader, writer, request):
+    writer.write(StatusLine.OK_200)
+    writer.write(ResponseHeader.CONNECTION_CLOSE)
+    writer.write(MimeType.TEXT_HTML)
+    writer.write(CRLF)
+    await writer.drain()
     pin_status = dict()
-    for pin in pins:
-        pin_status[pin.id()] = pin.value()
-
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: text/html\r\n")
-    conn.write(b"\r\n")
-    conn.write(json.dumps(pin_status))
-    return CONNECTION_CLOSE
+    for i, pin in enumerate(pins):
+        pin_status[i] = pin.value()
+    writer.write(json.dumps(pin_status))
 
 
 @app.route("GET", "/api/button")
-def api_button(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
+async def api_button(reader, writer, request):
+    writer.write(StatusLine.OK_200)
+    writer.write(ResponseHeader.CONNECTION_CLOSE)
+    writer.write(CRLF)
+    await writer.drain()
     parameters = request["parameters"]
     if "LED" in parameters:
-        led(0) if parameters["LED"] == "On" else led(1)
-        conn.write(b"Content-Type: text/html\r\n")
-        conn.write(b"\r\n")
-        conn.write(json.dumps({"LED": parameters["LED"]}))
-    conn.write("\r\n")
-    return CONNECTION_CLOSE
+        led(1) if parameters["LED"] == "On" else led(0)
+        writer.write(json.dumps(parameters))
 
 
 @app.route("GET", "/api/toggle")
-def api_toggle(conn, request):
-    global led
-    led.toggle()
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"\r\n")
-    return CONNECTION_CLOSE
+async def api_toggle(reader, writer, request):
+    led(not led.value())
+    writer.write(StatusLine.OK_200)
+    writer.write(ResponseHeader.CONNECTION_CLOSE)
+    writer.write(CRLF)
+    await writer.drain()
 
 
 @app.route("GET", "/api/stop")
-def stop(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"\r\n")
-    raise Exception("Stop Server")
+async def api_stop(reader, writer, request):
+    writer.write(StatusLine.OK_200)
+    writer.write(ResponseHeader.CONNECTION_CLOSE)
+    writer.write(CRLF)
+    await writer.drain()
+    raise (KeyboardInterrupt)
 
 
-app.start()
+if __name__ == "__main__":
+    try:
+        def handle_exception(loop, context):
+            # uncaught exceptions end up here
+            import sys
+            sys.print_exception(context["exception"])
+            sys.exit()
+
+
+        def pb_handler(pin, action):
+            print("pushbutton handler", pin, action)  # debug
+            pb_event.set()
+
+
+        pb0 = abutton.Pushbutton(pins[0], suppress=True)
+        pb0.press_func(pb_handler, ("pb0", "press"))
+        pb0.release_func(pb_handler, ("pb0", "release"))
+
+        pb1 = abutton.Pushbutton(pins[1], suppress=True)
+        pb1.press_func(pb_handler, ("pb1", "press"))
+        pb1.release_func(pb_handler, ("pb1", "release"))
+
+        loop = asyncio.get_event_loop()
+        loop.set_exception_handler(handle_exception)
+        loop.create_task(app.start())
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        asyncio.run(app.stop())
+        asyncio.new_event_loop()
