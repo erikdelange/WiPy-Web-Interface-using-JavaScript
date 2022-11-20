@@ -6,7 +6,9 @@ from uasyncio import Event
 
 import abutton
 import expboard2
-from ahttpserver import (CRLF, EventSource, MimeType, ResponseHeader, Server, StatusLine, sendfile)
+from ahttpserver import (CRLF, MimeType, ResponseHeader, Server, StatusLine, sendfile)
+from ahttpserver.sse import EventSource
+
 
 app = Server()
 
