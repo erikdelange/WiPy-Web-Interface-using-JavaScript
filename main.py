@@ -1,4 +1,5 @@
 import json
+import time
 
 import uasyncio as asyncio
 from machine import Pin, Signal
@@ -6,7 +7,8 @@ from uasyncio import Event
 
 import abutton
 import expboard2
-from ahttpserver import (CRLF, MimeType, ResponseHeader, Server, StatusLine, sendfile)
+from ahttpserver import Server, sendfile
+from ahttpserver.response import CRLF, MimeType, ResponseHeader, StatusLine
 from ahttpserver.sse import EventSource
 
 
@@ -24,7 +26,6 @@ pb_event = Event()  # pushbutton event
 @app.route("GET", "/api/pin")
 async def api_pin(reader, writer, request):
     eventsource = await EventSource.upgrade(reader, writer)
-    await eventsource.retry(5000)
     while True:
         await pb_event.wait()
         pb_event.clear()
@@ -35,6 +36,18 @@ async def api_pin(reader, writer, request):
             await eventsource.send(event="pin_change", data=json.dumps(d))
         except Exception as e:  # catch (a.o.) ECONNRESET when the client has disappeared
             print("api_pin exception:", e)  # debug
+            break  # close connection
+
+
+@app.route("GET", "/api/time")
+async def api_time(reader, writer, request):
+    eventsource = await EventSource.upgrade(reader, writer)
+    while True:
+        await asyncio.sleep(1)
+        t = time.localtime()
+        try:
+            await eventsource.send(event="time", data=f"{t[3]:02d}:{t[4]:02d}:{t[5]:02d}")
+        except Exception:
             break  # close connection
 
 

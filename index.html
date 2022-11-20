@@ -12,9 +12,9 @@
 <body>
   <div class="w3-container" style="width:fit-content">
     <div class="w3-panel w3-light-gray">
-      <h1> Expansion Board </h1>
+      <h2> Expansion Board </h2>
     </div>
-    <h2> Button Status </h2>
+    <h3> Button Status </h3>
     <table class="w3-table-all">
       <thead>
         <tr class="w3-light-grey">
@@ -23,13 +23,15 @@
         </tr>
       </thead>
       <tbody id="rows">
-        <!-- use Javascript to fill this space with the table content -->
+        <!-- use JavaScript to fill this space with the table content -->
       </tbody>
     </table>
-    <h2> LED </h2>
+    <h3> LED </h3>
     <button name="LED" value="On" onclick="onClickEvent(event)" class="w3-btn w3-border w3-light-gray" style="width:100px"> ON </button>
     <button name="LED" value="Off" onclick="onClickEvent(event)" class="w3-btn w3-border w3-light-gray" style="width:100px"> OFF </button>
     <button name="LED" value="On" onclick="onToggleEvent(event)" class="w3-btn w3-border w3-light-gray" style="width:100px"> TOGGLE </button>
+    <h3> Time </h3>
+    <p id="time"> hh:mm:ss </p>
   </div>
   <script>
     "use strict";
@@ -61,7 +63,7 @@
       console.log("fetch error:", error);
     }
 
-    // Click on the ON or OFF button
+    // Handle click on the ON or OFF button
     function onClickEvent(event) {
       var element = event.target;
       fetch("/api/button?".concat(element.name, "=", element.value))
@@ -73,7 +75,7 @@
         .catch(logError);
     }
 
-    // Click on the TOGGLE button
+    // Handle click on the TOGGLE button
     function onToggleEvent(event) {
       fetch("/api/toggle")
         .then(validateResponse)
@@ -95,10 +97,10 @@
         })
         .catch(logError);
 
-      // Setup client side event listener
-      const eventSource = new EventSource("/api/pin");
+      // Setup pin event listener
+      const pinEventSource = new EventSource("/api/pin");
 
-      eventSource.addEventListener("pin_change", (event) => {
+      pinEventSource.addEventListener("pin_change", (event) => {
         var data = JSON.parse(event.data);
         console.log("pin_change event:", event, "data:", data);
         for (var key in data) {
@@ -106,20 +108,32 @@
         }
       });
 
-      eventSource.onopen = (event) => {
-        console.log("pin_change open", event);
+      pinEventSource.onopen = (event) => {
+        console.log(pinEventSource.url, "open");
       };
 
-      eventSource.onmessage = (event) => {
-        console.log("message without event type, data =", event.data);
+      pinEventSource.onmessage = (event) => {
+        console.log(pinEventSource.url, "message without event type, data =", event.data);
       };
 
-      eventSource.onerror = (event) => {
-        console.log("pin_change error", event);
-        eventSource.close();  // release resources; only do this if you do not want auto reconnect
+      pinEventSource.onerror = (event) => {
+        console.log(pinEventSource.url, "error");
+        pinEventSource.close();  // release resources; only do this if you do not want auto reconnect
       };
 
-    }
+      // Setup time event listener
+      const timeEventSource = new EventSource("/api/time");
+
+      timeEventSource.addEventListener("time", (event) => {
+        document.getElementById("time").innerHTML = event.data;
+      });
+
+      timeEventSource.onerror = (event) => {
+        console.log(timeEventSource.url, "error");
+        timeEventSource.close();
+      };
+
+    }  // onLoadEvent
 
     window.onload = onLoadEvent();
   </script>
