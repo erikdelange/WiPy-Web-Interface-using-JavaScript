@@ -49,7 +49,7 @@ pb_event = Event()  # pushbutton event
 
 @app.route("GET", "/api/pin")
 async def api_pin(reader, writer, request):
-    eventsource = await EventSource.upgrade(reader, writer)
+    eventsource = await EventSource.init(reader, writer)
     while True:
         await pb_event.wait()
         pb_event.clear()
