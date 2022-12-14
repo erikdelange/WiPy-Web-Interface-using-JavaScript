@@ -1,5 +1,5 @@
 import json
-import time
+import utime as time
 
 import uasyncio as asyncio
 from machine import Pin, Signal
@@ -25,7 +25,10 @@ pb_event = Event()  # pushbutton event
 
 @app.route("GET", "/api/pin")
 async def api_pin(reader, writer, request):
-    eventsource = await EventSource.init(reader, writer)  
+    eventsource = await EventSource.init(reader, writer)
+
+    await eventsource.send(retry=50000)
+
     while True:
         await pb_event.wait()
         pb_event.clear()
@@ -47,7 +50,8 @@ async def api_time(reader, writer, request):
         t = time.localtime()
         try:
             await eventsource.send(event="time", data=f"{t[3]:02d}:{t[4]:02d}:{t[5]:02d}")
-        except Exception:
+        except Exception as e:
+            print("api_time exception:", e)  # debug
             break  # close connection
 
 
@@ -90,10 +94,9 @@ async def api_button(reader, writer, request):
     writer.write(ResponseHeader.CONNECTION_CLOSE)
     writer.write(CRLF)
     await writer.drain()
-    parameters = request["parameters"]
-    if "LED" in parameters:
-        led(1) if parameters["LED"] == "On" else led(0)
-        writer.write(json.dumps(parameters))
+    if "LED" in request.parameters:
+        led(1) if request.parameters["LED"] == "On" else led(0)
+        writer.write(json.dumps(request.parameters))
 
 
 @app.route("GET", "/api/toggle")
@@ -118,7 +121,7 @@ if __name__ == "__main__":
     try:
         def handle_exception(loop, context):
             # uncaught exceptions end up here
-            import sys
+            import usys as sys
             sys.print_exception(context["exception"])
             sys.exit()
 
