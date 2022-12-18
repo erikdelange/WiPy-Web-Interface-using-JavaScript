@@ -1,18 +1,16 @@
 import json
-import utime as time
 
 import uasyncio as asyncio
+import utime as time
 from machine import Pin, Signal
 from uasyncio import Event
 
 import abutton
 import expboard2
-from ahttpserver import Server, sendfile
-from ahttpserver.response import CRLF, MimeType, ResponseHeader, StatusLine
+from ahttpserver import HTTPResponse, HTTPServer, sendfile
 from ahttpserver.sse import EventSource
 
-
-app = Server()
+app = HTTPServer()
 
 # Connect variable 'led' to the user led on the expansion board
 led = Signal(expboard2.LED, Pin.OUT, value=0, invert=True)
@@ -57,31 +55,22 @@ async def api_time(reader, writer, request):
 
 @app.route("GET", "/")
 async def root(reader, writer, request):
-    writer.write(StatusLine.OK_200)
-    writer.write(ResponseHeader.CONNECTION_CLOSE)
-    writer.write(MimeType.TEXT_HTML)
-    writer.write(CRLF)
-    await writer.drain()
+    response = HTTPResponse(200, "text/html", close=True)
+    await response.send(writer)
     await sendfile(writer, "index.html")
 
 
 @app.route("GET", "/favicon.ico")
 async def favicon(reader, writer, request):
-    writer.write(StatusLine.OK_200)
-    writer.write(ResponseHeader.CONNECTION_CLOSE)
-    writer.write(MimeType.IMAGE_X_ICON)
-    writer.write(CRLF)
-    await writer.drain()
+    response = HTTPResponse(200, "image/x-icon", close=True)
+    await response.send(writer)
     await sendfile(writer, "favicon.ico")
 
 
 @app.route("GET", "/api/init")
 async def api_init(reader, writer, request):
-    writer.write(StatusLine.OK_200)
-    writer.write(ResponseHeader.CONNECTION_CLOSE)
-    writer.write(MimeType.TEXT_HTML)
-    writer.write(CRLF)
-    await writer.drain()
+    response = HTTPResponse(200, "application/json", close=True)
+    await response.send(writer)
     pin_status = dict()
     for i, pin in enumerate(pins):
         pin_status[i] = pin.value()
@@ -90,10 +79,8 @@ async def api_init(reader, writer, request):
 
 @app.route("GET", "/api/button")
 async def api_button(reader, writer, request):
-    writer.write(StatusLine.OK_200)
-    writer.write(ResponseHeader.CONNECTION_CLOSE)
-    writer.write(CRLF)
-    await writer.drain()
+    response = HTTPResponse(200, close=True)
+    await response.send(writer)
     if "LED" in request.parameters:
         led(1) if request.parameters["LED"] == "On" else led(0)
         writer.write(json.dumps(request.parameters))
@@ -101,19 +88,15 @@ async def api_button(reader, writer, request):
 
 @app.route("GET", "/api/toggle")
 async def api_toggle(reader, writer, request):
+    response = HTTPResponse(200, close=True)
+    await response.send(writer)
     led(not led.value())
-    writer.write(StatusLine.OK_200)
-    writer.write(ResponseHeader.CONNECTION_CLOSE)
-    writer.write(CRLF)
-    await writer.drain()
 
 
 @app.route("GET", "/api/stop")
 async def api_stop(reader, writer, request):
-    writer.write(StatusLine.OK_200)
-    writer.write(ResponseHeader.CONNECTION_CLOSE)
-    writer.write(CRLF)
-    await writer.drain()
+    response = HTTPResponse(200, close=True)
+    await response.send(writer)
     raise (KeyboardInterrupt)
 
 
