@@ -3,7 +3,6 @@ import json
 import uasyncio as asyncio
 import utime as time
 from machine import Pin, Signal
-from uasyncio import Event
 
 import abutton
 import expboard2
@@ -18,12 +17,12 @@ led = Signal(expboard2.LED, Pin.OUT, value=0, invert=True)
 # Connect 'pins' to the user button on the expansion board plus one additional pin
 pins = [Pin(i, Pin.IN, Pin.PULL_UP) for i in (expboard2.BUTTON, 14)]
 
-pb_event = Event()  # pushbutton event
+pb_event = asyncio.Event()  # pushbutton event
 
 
 @app.route("GET", "/api/pin")
 async def api_pin(reader, writer, request):
-    eventsource = await EventSource.init(reader, writer)
+    eventsource = await EventSource(reader, writer)
 
     await eventsource.send(retry=50000)
 
@@ -42,7 +41,7 @@ async def api_pin(reader, writer, request):
 
 @app.route("GET", "/api/time")
 async def api_time(reader, writer, request):
-    eventsource = await EventSource.init(reader, writer)
+    eventsource = await EventSource(reader, writer)
     while True:
         await asyncio.sleep(1)
         t = time.localtime()
